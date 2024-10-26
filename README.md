@@ -64,31 +64,26 @@ To start the program:
 
 The `docker-compose.yml` file in this repository configures a local Kafka cluster with Zookeeper and Kafka UI for easy management.
 
-## Services
+## Accessing Kafka UI
 
-- **zookeeper**: Manages broker metadata.
-- **kafka1, kafka2, kafka3**: Three Kafka brokers.
-- **kafka-ui**: A web interface for managing Kafka topics, partitions, consumers, etc.
+Once the services are started, access the Kafka UI at [http://localhost:8080](http://localhost:8080) to manage topics and view cluster status.
 
-## Running the Docker Setup
+## Ports
 
-To start the Kafka services:
+- **Kafka Brokers**: Accessible externally on ports `29092`, `29093`, and `29094`.
+- **Kafka UI**: Accessible on port `8080`.
 
-```shell
-docker-compose up -d
+## Volumes
 
-Once started, access Kafka UI at http://localhost:8080 to manage topics and view cluster status.
-
-Ports
-Kafka Brokers: Accessible externally on ports 29092, 29093, 29094.
-Kafka UI: Accessible on port 8080.
-Volumes
 Each broker's data is persisted using Docker volumes, ensuring data durability across container restarts.
 
 ## Dependencies
-Confluent.Kafka: Kafka client library.
-Serilog: Logging framework for .NET.
-Docker and Docker Compose: Required for setting up the Kafka cluster.
-Dotnet SDK: .NET 8.0 or higher.
-License
+
+- **Confluent.Kafka**: Kafka client library.
+- **Serilog**: Logging framework for .NET.
+- **Docker and Docker Compose**: Required for setting up the Kafka cluster.
+- **Dotnet SDK**: .NET 5.0 or higher.
+
+## License
+
 This project is open-source. Feel free to modify and distribute it.
