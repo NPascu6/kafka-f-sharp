@@ -1,0 +1,6 @@
+KafkaApp/bin/
+KafkaApp/obj/
+KafkaApp/Properties/launchSettings.json
+
+kafka-f-sharp/bin/
+kafka-f-sharp/obj/
