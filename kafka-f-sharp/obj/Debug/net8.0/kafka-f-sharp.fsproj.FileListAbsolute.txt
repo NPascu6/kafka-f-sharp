@@ -1,0 +1,13 @@
+G:\dev\kafka\kafka-f-sharp\bin\Debug\net8.0\kafka-f-sharp.deps.json
+G:\dev\kafka\kafka-f-sharp\bin\Debug\net8.0\kafka-f-sharp.dll
+G:\dev\kafka\kafka-f-sharp\bin\Debug\net8.0\kafka-f-sharp.pdb
+G:\dev\kafka\kafka-f-sharp\bin\Debug\net8.0\kafka-f-sharp.xml
+G:\dev\kafka\kafka-f-sharp\obj\Debug\net8.0\kafka-f-sharp.fsproj.AssemblyReference.cache
+G:\dev\kafka\kafka-f-sharp\obj\Debug\net8.0\kafka-f-sharp.AssemblyInfoInputs.cache
+G:\dev\kafka\kafka-f-sharp\obj\Debug\net8.0\kafka-f-sharp.AssemblyInfo.fs
+G:\dev\kafka\kafka-f-sharp\obj\Debug\net8.0\kafka-f-sharp.fsproj.CoreCompileInputs.cache
+G:\dev\kafka\kafka-f-sharp\obj\Debug\net8.0\kafka-f-sharp.dll
+G:\dev\kafka\kafka-f-sharp\obj\Debug\net8.0\refint\kafka-f-sharp.dll
+G:\dev\kafka\kafka-f-sharp\obj\Debug\net8.0\kafka-f-sharp.xml
+G:\dev\kafka\kafka-f-sharp\obj\Debug\net8.0\kafka-f-sharp.pdb
+G:\dev\kafka\kafka-f-sharp\obj\Debug\net8.0\ref\kafka-f-sharp.dll
