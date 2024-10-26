@@ -85,7 +85,7 @@ Kafka UI: Accessible on port 8080.
 Volumes
 Each broker's data is persisted using Docker volumes, ensuring data durability across container restarts.
 
-Dependencies
+## Dependencies
 Confluent.Kafka: Kafka client library.
 Serilog: Logging framework for .NET.
 Docker and Docker Compose: Required for setting up the Kafka cluster.
