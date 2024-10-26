@@ -60,39 +60,35 @@ To start the program:
    ```shell
    dotnet run
 
-CLI Options
-Upon running, you will see the following options:
+# Kafka Docker Setup
 
-1: Create a new topic.
-2: Send a message to a topic.
-3: List available topics.
-4: Delete a topic.
-5: Get details for a topic.
-6: Consume messages from a topic.
-q: Quit the application.
-Kafka Docker Setup
-The Docker Compose file (docker-compose.yml) in this repository configures a local Kafka cluster with Zookeeper and Kafka UI.
+The `docker-compose.yml` file in this repository configures a local Kafka cluster with Zookeeper and Kafka UI for easy management.
 
-Services
-zookeeper: Manages broker metadata.
-kafka1, kafka2, kafka3: Three Kafka brokers.
-kafka-ui: A web interface for managing Kafka topics, partitions, consumers, etc.
-Running the Docker Setup
-Start the services:
-shell
-Copy code
+## Services
+
+- **zookeeper**: Manages broker metadata.
+- **kafka1, kafka2, kafka3**: Three Kafka brokers.
+- **kafka-ui**: A web interface for managing Kafka topics, partitions, consumers, etc.
+
+## Running the Docker Setup
+
+To start the Kafka services:
+
+```shell
 docker-compose up -d
-Access Kafka UI at http://localhost:8080 to manage topics and view cluster status.
+
+Once started, access Kafka UI at http://localhost:8080 to manage topics and view cluster status.
+
 Ports
-Kafka Brokers: 29092, 29093, 29094 (for external access)
-Kafka UI: 8080
+Kafka Brokers: Accessible externally on ports 29092, 29093, 29094.
+Kafka UI: Accessible on port 8080.
 Volumes
-Each broker's data is persisted using Docker volumes for data durability across restarts.
+Each broker's data is persisted using Docker volumes, ensuring data durability across container restarts.
 
 Dependencies
 Confluent.Kafka: Kafka client library.
 Serilog: Logging framework for .NET.
-Docker and Docker Compose: For setting up the Kafka cluster.
-Dotnet SDK: .NET 5.0 or higher.
+Docker and Docker Compose: Required for setting up the Kafka cluster.
+Dotnet SDK: .NET 8.0 or higher.
 License
 This project is open-source. Feel free to modify and distribute it.
