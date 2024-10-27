@@ -134,4 +134,4 @@ let main argv =
             interactiveLoop ()
 
     interactiveLoop ()
-    0 // Return an integer exit code
+    0

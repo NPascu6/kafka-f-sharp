@@ -6,10 +6,7 @@ open System
 open LoggingWrapper
 open KafkaConfig
 
-// Kafka service implementation using IKafkaConfig and ILogger for dependency injection
 type KafkaService(kafkaConfig: IKafkaConfig, logger: ILoggingWrapper) =
-
-    // Configuration for the Kafka producer using provided settings
     let producerConfig =
         let config = ProducerConfig(BootstrapServers = kafkaConfig.BootstrapServers)
         config.MessageTimeoutMs <- 5000

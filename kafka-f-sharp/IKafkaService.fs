@@ -1,6 +1,5 @@
 namespace KafkaService
 
-// Kafka service interface
 type IKafkaService =
     abstract member ProduceMessage:
         topic: string -> key: string -> value: string -> partition: int option -> Async<unit>
