@@ -91,24 +91,28 @@ type KafkaStreamsService(kafkaConfig: IKafkaConfig, logger: ILoggingWrapper, kaf
         this.StopStream()
         this.StartStream(inputTopic, outputTopic)
 
-    member this.CombineStreams<'K, 'V>(inputTopic1: string, inputTopic2: string, outputTopic: string) =
+    member this.CombineStreams(inputTopic1: string, inputTopic2: string, outputTopic: string) =
         let builder = StreamBuilder()
 
         let topic1 = kafkaService.GetTopicByName inputTopic1
         let topic2 = kafkaService.GetTopicByName inputTopic2
 
         if topic1 <> "0" && topic2 <> "0" then
-            // Define the first stream
-            let stream1 = builder.Stream<'K, 'V>(topic1)
+            // Define SerDes explicitly
+            let keySerdes = StringSerDes() :> ISerDes<string>
+            let valueSerdes = StringSerDes() :> ISerDes<string>
 
-            // Define the second stream
-            let stream2 = builder.Stream<'K, 'V>(topic2)
+            // Create the first stream with explicit SerDes
+            let stream1 = builder.Stream<string, string>(topic1, keySerdes, valueSerdes)
 
-            // Merge the two streams into one
+            // Create the second stream with explicit SerDes
+            let stream2 = builder.Stream<string, string>(topic2, keySerdes, valueSerdes)
+
+            // Merge the two streams
             let combinedStream = stream1.Merge(stream2)
 
-            // Send the merged stream to the output topic
-            combinedStream.To(outputTopic)
+            // Send the merged stream to the output topic with explicit SerDes
+            combinedStream.To(outputTopic, keySerdes, valueSerdes)
 
             streamShouldRun <- true
             Async.Start(startStreamWithRetry builder)
