@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\kafka-f-sharp\kafka-f-sharp.fsproj" />
+    <ProjectReference Include="..\kafka-f-sharp-streams\kafka-f-sharp-streams.fsproj" />
   </ItemGroup>
 
 </Project>

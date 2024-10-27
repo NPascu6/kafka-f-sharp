@@ -4,3 +4,5 @@ KafkaApp/Properties/launchSettings.json
 
 kafka-f-sharp/bin/
 kafka-f-sharp/obj/
+kafka-f-sharp-streams/bin/
+kafka-f-sharp-streams/obj/
