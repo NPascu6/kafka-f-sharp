@@ -7,28 +7,45 @@ open LoggingWrapper
 open KafkaConfig
 
 type KafkaService(kafkaConfig: IKafkaConfig, logger: ILoggingWrapper) =
-    let producerConfig =
-        let config = ProducerConfig(BootstrapServers = kafkaConfig.BootstrapServers)
-        config.MessageTimeoutMs <- 5000
-        config.RequestTimeoutMs <- 3000
-        config.EnableIdempotence <- true
-        config.MessageSendMaxRetries <- 3
-        config.Acks <- Acks.All
-        config.LingerMs <- 1
-        config.EnableDeliveryReports <- true
-        config.EnableBackgroundPoll <- true
-        config.MaxInFlight <- 5
-        config.RetryBackoffMs <- 100
-        config.SecurityProtocol <- kafkaConfig.SecurityProtocol
-        config
 
+    // Configuration setup for the producer with specified parameters
+    let producerConfig =
+        ProducerConfig(
+            BootstrapServers = kafkaConfig.BootstrapServers,
+            MessageTimeoutMs = 5000,
+            RequestTimeoutMs = 3000,
+            EnableIdempotence = true,
+            MessageSendMaxRetries = 3,
+            Acks = Acks.All,
+            LingerMs = 1,
+            EnableDeliveryReports = true,
+            EnableBackgroundPoll = true,
+            MaxInFlight = 5,
+            RetryBackoffMs = 100,
+            SecurityProtocol = kafkaConfig.SecurityProtocol
+        )
+
+    // Generic method for handling logging of async tasks with exception handling
+    let asyncLogger (action: Async<unit>) errorMessage =
+        async {
+            try
+                do! action
+            with ex ->
+                logger.LogError(errorMessage, ex)
+        }
+
+    // Checks for topic existence with async functionality
     member this.CheckTopicExists(topic: string) =
-        if String.IsNullOrEmpty topic then
-            false
-        else
-            async {
-                let adminConfig = AdminClientConfig(BootstrapServers = kafkaConfig.BootstrapServers)
-                adminConfig.SecurityProtocol <- kafkaConfig.SecurityProtocol
+        async {
+            if String.IsNullOrEmpty topic then
+                return false
+            else
+                let adminConfig =
+                    AdminClientConfig(
+                        BootstrapServers = kafkaConfig.BootstrapServers,
+                        SecurityProtocol = kafkaConfig.SecurityProtocol
+                    )
+
                 use adminClient = AdminClientBuilder(adminConfig).Build()
 
                 try
@@ -40,85 +57,88 @@ type KafkaService(kafkaConfig: IKafkaConfig, logger: ILoggingWrapper) =
                 with ex ->
                     logger.LogError(sprintf "Error checking existence of topic '%s'." topic, ex)
                     return false
-            }
-            |> Async.RunSynchronously
+        }
+        |> Async.RunSynchronously
 
+    // Method for producing a single message with options for specifying a partition
     member this.ProduceMessage (topic: string) (key: string) (value: string) (partition: int option) =
         async {
             if String.IsNullOrWhiteSpace(topic) || String.IsNullOrWhiteSpace(value) then
                 logger.LogError("Topic and message value must be provided.", null)
             else
-                logger.LogInfo(sprintf "Producing message to topic '%s'." topic)
                 use producer = ProducerBuilder<string, string>(producerConfig).Build()
                 let message = Message<string, string>(Key = key, Value = value)
+                logger.LogInfo(sprintf "Producing message to topic '%s'." topic)
 
-                try
-                    let! result =
-                        match partition with
-                        | Some p ->
-                            logger.LogInfo(sprintf "Sending message to topic '%s', partition %d." topic p)
+                let! result =
+                    match partition with
+                    | Some p ->
+                        producer.ProduceAsync(TopicPartition(topic, Partition p), message)
+                        |> Async.AwaitTask
+                    | None -> producer.ProduceAsync(topic, message) |> Async.AwaitTask
 
-                            producer.ProduceAsync(TopicPartition(topic, Partition p), message)
-                            |> Async.AwaitTask
-                        | None ->
-                            logger.LogInfo(
-                                sprintf "Sending message to topic '%s' (partition will be chosen by Kafka)." topic
-                            )
-
-                            producer.ProduceAsync(topic, message) |> Async.AwaitTask
-
-                    logger.LogInfo(
-                        sprintf
-                            "Message delivered to %s [%d] at offset %d"
-                            result.Topic
-                            result.Partition.Value
-                            result.Offset.Value
-                    )
-                with ex ->
-                    let errorMessage = sprintf "Failed to produce message to topic '%s'" topic
-                    logger.LogError(errorMessage, ex)
+                logger.LogInfo(
+                    sprintf
+                        "Message delivered to %s [%d] at offset %d"
+                        result.Topic
+                        result.Partition.Value
+                        result.Offset.Value
+                )
         }
 
+    // Produces a batch of messages to the specified topic
     member this.ProduceBatchMessages (topic: string) (messages: (string * string) seq) =
         if String.IsNullOrWhiteSpace(topic) then
             logger.LogError("Topic must be provided.", null)
         else
             use producer = ProducerBuilder<string, string>(producerConfig).Build()
 
-            try
-                for (key, value) in messages do
-                    let message = Message<string, string>(Key = key, Value = value)
-                    producer.ProduceAsync(topic, message) |> Async.AwaitTask |> ignore
-                    logger.LogInfo(sprintf "Message with key '%s' sent to topic '%s'." key topic)
-            with ex ->
-                logger.LogError(sprintf "Failed to produce batch messages to topic '%s'." topic, ex)
+            let produceTask =
+                async {
+                    for (key, value) in messages do
+                        let message = Message<string, string>(Key = key, Value = value)
+                        producer.ProduceAsync(topic, message) |> Async.AwaitTask |> ignore
+                        logger.LogInfo(sprintf "Message with key '%s' sent to topic '%s'." key topic)
+                }
 
+            try
+                produceTask |> Async.RunSynchronously
+                logger.LogInfo("All messages sent successfully.")
+            with ex ->
+                logger.LogError("Error producing messages.", ex)
+
+    // Creates or updates a topic configuration
     member this.CreateOrUpdateTopic (topic: string) (numPartitions: int) (replicationFactor: int) =
         async {
             if String.IsNullOrWhiteSpace(topic) || numPartitions <= 0 || replicationFactor <= 0 then
                 logger.LogError("Invalid topic name, partition count, or replication factor.", null)
+            else
+                let adminConfig =
+                    AdminClientConfig(
+                        BootstrapServers = kafkaConfig.BootstrapServers,
+                        SecurityProtocol = kafkaConfig.SecurityProtocol
+                    )
 
-            let adminConfig = AdminClientConfig(BootstrapServers = kafkaConfig.BootstrapServers)
-            adminConfig.SecurityProtocol <- kafkaConfig.SecurityProtocol
-            use adminClient = AdminClientBuilder(adminConfig).Build()
+                use adminClient = AdminClientBuilder(adminConfig).Build()
 
-            let topicConfig =
-                TopicSpecification(
-                    Name = topic,
-                    NumPartitions = numPartitions,
-                    ReplicationFactor = int16 replicationFactor
-                )
+                let topicConfig =
+                    TopicSpecification(
+                        Name = topic,
+                        NumPartitions = numPartitions,
+                        ReplicationFactor = int16 replicationFactor
+                    )
 
-            try
                 let exists = this.CheckTopicExists topic
 
                 if exists then
                     logger.LogInfo(sprintf "Topic '%s' exists. Updating configuration if necessary." topic)
                 else
-                    adminClient.CreateTopicsAsync([ topicConfig ]) |> Async.AwaitTask |> ignore
+                    do!
+                        adminClient.CreateTopicsAsync([ topicConfig ])
+                        |> Async.AwaitTask
+                        |> Async.Ignore
+
                     logger.LogInfo(sprintf "Topic '%s' created successfully." topic)
-            with ex ->
-                logger.LogError(sprintf "Failed to create or update topic '%s'." topic, ex)
         }
 
     member this.ListTopics() =
@@ -364,41 +384,65 @@ type KafkaService(kafkaConfig: IKafkaConfig, logger: ILoggingWrapper) =
                 logger.LogError("Failed to delete all topics.", ex)
         }
 
-    member this.GetTopicMessages topic =
+    member this.GetTopicMessages(topic: string) =
         async {
-            let partition0 = new TopicPartition(topic, 0)
-
             let consumerConfig =
                 let config = ConsumerConfig()
                 config.BootstrapServers <- kafkaConfig.BootstrapServers
-                config.GroupId <- "KafkaApp"
+                config.GroupId <- "KafkaService"
                 config.AutoOffsetReset <- AutoOffsetReset.Earliest
                 config.EnableAutoCommit <- true
                 config.SecurityProtocol <- kafkaConfig.SecurityProtocol
-                config.Debug <- "consumer"
                 config
 
-            use consumer = ConsumerBuilder<string, string>(consumerConfig).Build()
-            consumer.Assign([ partition0 ])
-            printfn "Consumer assigned to partition %A" partition0
+            let adminClient =
+                AdminClientBuilder(AdminClientConfig(BootstrapServers = kafkaConfig.BootstrapServers))
+                    .Build()
 
-            // Try-Catch around Seek to confirm Seek behavior
-            try
-                printfn "Attempting to Seek to Beginning"
-                let partitionOffset = new TopicPartitionOffset(partition0, Offset.Beginning)
-                consumer.Seek partitionOffset
-                printfn "Seek successful"
-            with ex ->
-                printfn "Exception during Seek: %A" ex
+            let metadata = adminClient.GetMetadata(TimeSpan.FromSeconds(5))
+            let topicMetadata = metadata.Topics |> Seq.tryFind (fun t -> t.Topic = topic)
 
-            // Polling loop with messages check
-            while true do
-                let result = consumer.Consume(TimeSpan.FromSeconds(5.0))
+            let partitions =
+                match topicMetadata with
+                | Some t -> t.Partitions |> Seq.map (fun p -> p.PartitionId)
+                | None -> Seq.empty
 
-                if result <> null then
-                    printfn "Message: %s" result.Message.Value
-                else
-                    printfn "No messages consumed in this interval"
+            let listOfPartitions = partitions |> Seq.toList
+
+            for partition in listOfPartitions do
+                async {
+                    use consumer = ConsumerBuilder<string, string>(consumerConfig).Build()
+                    consumer.Assign([ TopicPartitionOffset(topic, partition, Offset.Beginning) ])
+
+                    let rec consumeLoop () =
+                        async {
+                            let! result =
+                                async {
+                                    try
+                                        return Some(consumer.Consume(TimeSpan.FromSeconds(1)))
+                                    with :? ConsumeException as ex ->
+                                        logger.LogError("Error consuming message", ex)
+                                        return None
+                                }
+
+                            match result with
+                            | Some record when record <> null ->
+                                logger.LogInfo(
+                                    sprintf
+                                        "Consumed message: Key=%s, Value=%s, Partition=%d, Offset=%d"
+                                        record.Message.Key
+                                        record.Message.Value
+                                        record.Partition.Value
+                                        record.Offset.Value
+                                )
+
+                                return! consumeLoop ()
+                            | _ -> return ()
+                        }
+
+                    do! consumeLoop ()
+                }
+                |> Async.Start
         }
 
     interface IKafkaService with

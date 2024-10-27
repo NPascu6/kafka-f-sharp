@@ -105,7 +105,6 @@ let restartStream (kafkaStreamsService: KafkaStreamsService) =
 let getTopicMessages (kafkaService: IKafkaService) =
     printf ("Enter topic to get messages from: ")
     let topic = Console.ReadLine()
-    printf ("Enter period in seconds to get messages: ")
     kafkaService.GetTopicMessages topic |> Async.RunSynchronously
 
 let getPartitionsForTopic (kafkaService: IKafkaService) =
@@ -184,7 +183,7 @@ let main argv =
             deleteAllTopics kafkaService
             interactiveLoop ()
         | "12" ->
-            getTopicMessages kafkaService
+            getTopicMessages kafkaService |> ignore
             interactiveLoop ()
         | "13" ->
             combineStreams kafkaStreamsService
