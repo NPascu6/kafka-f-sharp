@@ -340,6 +340,30 @@ type KafkaService(kafkaConfig: IKafkaConfig, logger: ILoggingWrapper) =
             logger.LogError(sprintf "Failed to fetch details for topic '%s'." name, ex)
             "0"
 
+    member this.DeleteAllTopics() =
+        async {
+            logger.LogInfo("Deleting all topics.")
+            let adminConfig = AdminClientConfig(BootstrapServers = kafkaConfig.BootstrapServers)
+            adminConfig.SecurityProtocol <- kafkaConfig.SecurityProtocol
+
+            use adminClient = AdminClientBuilder(adminConfig).Build()
+
+            try
+                let metadata = adminClient.GetMetadata(TimeSpan.FromSeconds(5))
+                let topics = metadata.Topics |> Seq.map (fun t -> t.Topic)
+
+                if Seq.isEmpty topics then
+                    logger.LogInfo("No topics found.")
+                else
+                    topics
+                    |> Seq.iter (fun t ->
+                        logger.LogInfo(sprintf "Deleting topic '%s'." t)
+                        adminClient.DeleteTopicsAsync([ t ]) |> Async.AwaitTask |> ignore
+                        logger.LogInfo(sprintf "Topic '%s' deleted successfully." t))
+            with ex ->
+                logger.LogError("Failed to delete all topics.", ex)
+        }
+
     member this.GetTopicMessages topic =
         async {
             let partition0 = new TopicPartition(topic, 0)
@@ -403,3 +427,5 @@ type KafkaService(kafkaConfig: IKafkaConfig, logger: ILoggingWrapper) =
         member this.GetTopicMessages topic = this.GetTopicMessages topic
 
         member this.GetPartitionsForTopic topic = this.GetPartitionsForTopic topic
+
+        member this.DeleteAllTopics() = this.DeleteAllTopics()

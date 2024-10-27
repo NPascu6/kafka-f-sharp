@@ -91,36 +91,28 @@ type KafkaStreamsService(kafkaConfig: IKafkaConfig, logger: ILoggingWrapper, kaf
         this.StopStream()
         this.StartStream(inputTopic, outputTopic)
 
-    member this.JoinStreamWithTable<'K, 'VStream, 'VTable, 'VResult>
-        (streamTopic: string, tableTopic: string, outputTopic: string, joinFunction: 'VStream -> 'VTable -> 'VResult)
-        =
-
+    member this.CombineStreams<'K, 'V>(inputTopic1: string, inputTopic2: string, outputTopic: string) =
         let builder = StreamBuilder()
-        let streamTopic = kafkaService.GetTopicByName streamTopic
-        let tableTopic = kafkaService.GetTopicByName tableTopic
 
-        if streamTopic <> "0" && tableTopic <> "0" then
-            let stream = builder.Stream<'K, 'VStream>(streamTopic)
+        let topic1 = kafkaService.GetTopicByName inputTopic1
+        let topic2 = kafkaService.GetTopicByName inputTopic2
 
-            let table =
-                builder.Table<'K, 'VTable>(
-                    tableTopic,
-                    Materialized<'K, 'VTable, IKeyValueStore<Bytes, byte[]>>.Create("table-store")
-                )
+        if topic1 <> "0" && topic2 <> "0" then
+            // Define the first stream
+            let stream1 = builder.Stream<'K, 'V>(topic1)
 
-            // Join the stream with the table using the provided join function
-            stream.Join<'VTable, 'VResult>(table, joinFunction).To(outputTopic)
+            // Define the second stream
+            let stream2 = builder.Stream<'K, 'V>(topic2)
+
+            // Merge the two streams into one
+            let combinedStream = stream1.Merge(stream2)
+
+            // Send the merged stream to the output topic
+            combinedStream.To(outputTopic)
 
             streamShouldRun <- true
             Async.Start(startStreamWithRetry builder)
-
-    member this.CreateKTable<'K, 'V>(topic: string, storeName: string) =
-        let builder = StreamBuilder()
-        let topic = kafkaService.GetTopicByName topic
-
-        if topic <> "0" then
-            builder.Table<'K, 'V>(topic, Materialized<'K, 'V, IKeyValueStore<Bytes, byte[]>>.Create(storeName))
-            |> ignore
+            logger.LogInfo("Combined streams from topics into one output stream.")
 
     member this.JoinTwoKTables(topic1: string, topic2: string, outputTopic: string) =
         let builder = StreamBuilder()

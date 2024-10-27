@@ -23,3 +23,5 @@ type IKafkaService =
     abstract member GetTopicMessages: topic: string -> Async<unit>
 
     abstract member GetPartitionsForTopic: topic: string -> Async<unit>
+
+    abstract member DeleteAllTopics: unit -> Async<unit>

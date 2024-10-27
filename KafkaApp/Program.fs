@@ -28,8 +28,6 @@ let createTopic (kafkaService: IKafkaService) =
     kafkaService.CreateTopic topicName partitions replicationFactor
     |> Async.RunSynchronously
 
-    printfn "Topic '%s' created with %d partitions and replication factor %d." topicName partitions replicationFactor
-
 let sendMessage (kafkaService: IKafkaService) =
     printf "Enter the topic name: "
     let topicName = Console.ReadLine()
@@ -53,18 +51,15 @@ let sendMessage (kafkaService: IKafkaService) =
 
 let listTopics (kafkaService: IKafkaService) =
     kafkaService.ListTopics() |> Async.RunSynchronously
-    printfn "Topics listed successfully."
 
 let deleteTopic (kafkaService: IKafkaService) =
     printf "Enter the topic name: "
     let topicName = Console.ReadLine()
     kafkaService.DeleteTopic(topicName) |> Async.RunSynchronously
-    printfn "Topic '%s' deletion requested." topicName
 
 let getTopicDetails (kafkaService: IKafkaService) =
     printf "Enter the topic name: "
     kafkaService.GetTopicDetails(Console.ReadLine()) |> Async.RunSynchronously
-    printfn "Topic details fetched successfully."
 
 let consumeMessages (kafkaService: IKafkaService) =
     printf "Enter the topic name to consume messages from: "
@@ -83,7 +78,8 @@ let consumeMessages (kafkaService: IKafkaService) =
     kafkaService.ConsumeMessages topicName groupId timeoutMs
     |> Async.RunSynchronously
 
-    printfn "Messages consumed from topic '%s'." topicName
+let deleteAllTopics (kafkaService: IKafkaService) =
+    kafkaService.DeleteAllTopics() |> Async.RunSynchronously
 
 // Stream functions with validations
 let startStream (kafkaStreamsService: KafkaStreamsService) =
@@ -117,6 +113,16 @@ let getPartitionsForTopic (kafkaService: IKafkaService) =
     let topic = Console.ReadLine()
     kafkaService.GetPartitionsForTopic topic |> Async.RunSynchronously
 
+let combineStreams (kafkaStreamsService: KafkaStreamsService) =
+    printf "Enter the input1 topic (must be a valid, existing topic): "
+    let inputTopic1 = Console.ReadLine()
+    printf "Enter the input2 topic (must be a valid, existing topic): "
+    let inputTopic2 = Console.ReadLine()
+    printf "Enter the output topic (must be a valid, existing topic different from input): "
+    let outputTopic = Console.ReadLine()
+    kafkaStreamsService.CombineStreams(inputTopic1, inputTopic2, outputTopic)
+    printfn "Kafka Stream started between '%s' and '%s' to %s." inputTopic1 inputTopic2 outputTopic
+
 let showMenu () =
     printfn "\nKafka Client Options:"
     printfn "1. Create a new topic"
@@ -126,10 +132,10 @@ let showMenu () =
     printfn "5. Get topic details"
     printfn "6. Consume messages from a topic real time"
     printfn "7. Start Kafka stream"
-    printfn "8. Stop Kafka stream"
-    printfn "9. Restart Kafka stream"
     printfn "10. Get partitions for a topic"
+    printfn "11. Delete all topics"
     printfn "12. Get messages from a topic"
+    printfn "13. Combine two streams"
     printfn "q. Quit"
     printf "Select an option: "
 
@@ -174,8 +180,14 @@ let main argv =
         | "10" ->
             getPartitionsForTopic kafkaService
             interactiveLoop ()
+        | "11" ->
+            deleteAllTopics kafkaService
+            interactiveLoop ()
         | "12" ->
             getTopicMessages kafkaService
+            interactiveLoop ()
+        | "13" ->
+            combineStreams kafkaStreamsService
             interactiveLoop ()
         | "q"
         | "Q" -> printfn "Exiting Kafka Client..."
