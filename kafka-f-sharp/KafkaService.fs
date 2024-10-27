@@ -222,6 +222,39 @@ type KafkaService(kafkaConfig: IKafkaConfig, logger: ILoggingWrapper) =
             logger.LogInfo(sprintf "Fetching details for topic '%s'." topic)
             let adminConfig = AdminClientConfig(BootstrapServers = kafkaConfig.BootstrapServers)
             adminConfig.SecurityProtocol <- kafkaConfig.SecurityProtocol
+            let topicExists = this.CheckTopicExists topic
+            use adminClient = AdminClientBuilder(adminConfig).Build()
+
+            if (not topicExists) then
+                logger.LogInfo(sprintf "Topic '%s' does not exist." topic)
+            else
+                try
+                    let metadata = adminClient.GetMetadata(topic, TimeSpan.FromSeconds(5))
+                    let topicMetadata = metadata.Topics |> Seq.tryFind (fun t -> t.Topic = topic)
+                    let partitions = topicMetadata |> Option.map (fun t -> t.Partitions.Count)
+
+                    match topicMetadata with
+                    | Some t ->
+                        logger.LogInfo(sprintf "Topic: %s" t.Topic)
+                        logger.LogInfo(sprintf "Partitions: %d" t.Partitions.Count)
+
+                        t.Partitions
+                        |> Seq.iter (fun p ->
+                            logger.LogInfo(
+                                sprintf "Partition: %d, Leader: %d, Replicas: %A" p.PartitionId p.Leader p.Replicas
+                            ))
+
+                    | None -> logger.LogInfo(sprintf "Topic '%s' does not exist." topic)
+                with ex ->
+                    logger.LogError(sprintf "Failed to fetch details for topic '%s'." topic, ex)
+
+        }
+
+    member this.GetPartitionsForTopic topic =
+        async {
+            logger.LogInfo(sprintf "Fetching partitions for topic '%s'." topic)
+            let adminConfig = AdminClientConfig(BootstrapServers = kafkaConfig.BootstrapServers)
+            adminConfig.SecurityProtocol <- kafkaConfig.SecurityProtocol
 
             use adminClient = AdminClientBuilder(adminConfig).Build()
 
@@ -239,9 +272,14 @@ type KafkaService(kafkaConfig: IKafkaConfig, logger: ILoggingWrapper) =
                         logger.LogInfo(
                             sprintf "Partition: %d, Leader: %d, Replicas: %A" p.PartitionId p.Leader p.Replicas
                         ))
-                | None -> logger.LogInfo(sprintf "Topic '%s' does not exist." topic)
+
+                    t.Partitions |> Seq.map (fun p -> p.PartitionId) |> ignore
+                | None ->
+                    logger.LogInfo(sprintf "Topic '%s' does not exist." topic)
+                    Seq.empty |> ignore
             with ex ->
-                logger.LogError(sprintf "Failed to fetch details for topic '%s'." topic, ex)
+                logger.LogError(sprintf "Failed to fetch partitions for topic '%s'." topic, ex)
+                Seq.empty |> ignore
         }
 
     member this.GetAllTopics() =
@@ -273,22 +311,6 @@ type KafkaService(kafkaConfig: IKafkaConfig, logger: ILoggingWrapper) =
                 logger.LogError("Failed to fetch details for all topics.", ex)
         }
 
-    member this.AddBroker(broker: string) =
-        async {
-            logger.LogInfo(sprintf "Adding broker '%s'." broker)
-            let adminConfig = AdminClientConfig(BootstrapServers = kafkaConfig.BootstrapServers)
-            adminConfig.SecurityProtocol <- kafkaConfig.SecurityProtocol
-
-            use adminClient = AdminClientBuilder(adminConfig).Build()
-
-            try
-                let brokerId = adminClient.AddBrokers(broker)
-                logger.LogInfo(sprintf "Broker '%s' added successfully." broker)
-                logger.LogInfo(sprintf "Broker ID: %d" brokerId)
-            with ex ->
-                logger.LogError("Failed to fetch details for all brokers.", ex)
-        }
-
     member this.GetTopicByName name =
         logger.LogInfo(sprintf "Fetching details for topic '%s'." name)
         let adminConfig = AdminClientConfig(BootstrapServers = kafkaConfig.BootstrapServers)
@@ -318,6 +340,43 @@ type KafkaService(kafkaConfig: IKafkaConfig, logger: ILoggingWrapper) =
             logger.LogError(sprintf "Failed to fetch details for topic '%s'." name, ex)
             "0"
 
+    member this.GetTopicMessages topic =
+        async {
+            let partition0 = new TopicPartition(topic, 0)
+
+            let consumerConfig =
+                let config = ConsumerConfig()
+                config.BootstrapServers <- kafkaConfig.BootstrapServers
+                config.GroupId <- "KafkaApp"
+                config.AutoOffsetReset <- AutoOffsetReset.Earliest
+                config.EnableAutoCommit <- true
+                config.SecurityProtocol <- kafkaConfig.SecurityProtocol
+                config.Debug <- "consumer"
+                config
+
+            use consumer = ConsumerBuilder<string, string>(consumerConfig).Build()
+            consumer.Assign([ partition0 ])
+            printfn "Consumer assigned to partition %A" partition0
+
+            // Try-Catch around Seek to confirm Seek behavior
+            try
+                printfn "Attempting to Seek to Beginning"
+                let partitionOffset = new TopicPartitionOffset(partition0, Offset.Beginning)
+                consumer.Seek partitionOffset
+                printfn "Seek successful"
+            with ex ->
+                printfn "Exception during Seek: %A" ex
+
+            // Polling loop with messages check
+            while true do
+                let result = consumer.Consume(TimeSpan.FromSeconds(5.0))
+
+                if result <> null then
+                    printfn "Message: %s" result.Message.Value
+                else
+                    printfn "No messages consumed in this interval"
+        }
+
     interface IKafkaService with
         member this.ProduceMessage (topic: string) (key: string) (value: string) (partition: int option) =
             this.ProduceMessage topic key value partition
@@ -338,7 +397,9 @@ type KafkaService(kafkaConfig: IKafkaConfig, logger: ILoggingWrapper) =
 
         member this.GetTopicByName name = this.GetTopicByName name
 
-        member this.AddBroker broker = this.AddBroker broker
-
         member this.ProduceBatchMessages (topic: string) (messages: (string * string) seq) =
             this.ProduceBatchMessages topic messages
+
+        member this.GetTopicMessages topic = this.GetTopicMessages topic
+
+        member this.GetPartitionsForTopic topic = this.GetPartitionsForTopic topic

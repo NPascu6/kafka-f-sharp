@@ -6,3 +6,6 @@ kafka-f-sharp/bin/
 kafka-f-sharp/obj/
 kafka-f-sharp-streams/bin/
 kafka-f-sharp-streams/obj/
+
+kafka-f-sharp-tests/bin/
+kafka-f-sharp-tests/obj/

@@ -106,15 +106,16 @@ let restartStream (kafkaStreamsService: KafkaStreamsService) =
     kafkaStreamsService.RestartStream(inputTopic, outputTopic)
     printfn "Kafka Stream restarted between '%s' and '%s'." inputTopic outputTopic
 
-let addBroker (kafkaService: IKafkaService) =
-    printf "Enter the broker address: "
-    let brokerAddress = Console.ReadLine()
-    kafkaService.AddBroker(brokerAddress) |> Async.RunSynchronously
-    printfn "Broker '%s' added successfully." brokerAddress
+let getTopicMessages (kafkaService: IKafkaService) =
+    printf ("Enter topic to get messages from: ")
+    let topic = Console.ReadLine()
+    printf ("Enter period in seconds to get messages: ")
+    kafkaService.GetTopicMessages topic |> Async.RunSynchronously
 
-
-let userActionJoinFunction (action: string) (profile: string) =
-    sprintf "Action: %s, Profile: %s" action profile
+let getPartitionsForTopic (kafkaService: IKafkaService) =
+    printf ("Enter topic to get partitions for: ")
+    let topic = Console.ReadLine()
+    kafkaService.GetPartitionsForTopic topic |> Async.RunSynchronously
 
 let showMenu () =
     printfn "\nKafka Client Options:"
@@ -123,92 +124,64 @@ let showMenu () =
     printfn "3. List topics"
     printfn "4. Delete a topic"
     printfn "5. Get topic details"
-    printfn "6. Consume messages from a topic"
+    printfn "6. Consume messages from a topic real time"
     printfn "7. Start Kafka stream"
     printfn "8. Stop Kafka stream"
     printfn "9. Restart Kafka stream"
-    printfn "10. Add a new broker"
+    printfn "10. Get partitions for a topic"
+    printfn "12. Get messages from a topic"
     printfn "q. Quit"
     printf "Select an option: "
 
 [<EntryPoint>]
 let main argv =
-    if (argv.Length > 0) then
-        match Int32.TryParse(argv.[0]) with
-        | true, num when num > 0 ->
-            for i in 1..num do
-                printfn $"Starting console app instance {i}..."
-        | _ -> printfn "Invalid number of console apps specified."
+    let kafkaConfig = KafkaConfig() :> IKafkaConfig
+    let logger = LoggingWrapper() :> ILoggingWrapper
+    let kafkaService = KafkaService(kafkaConfig, logger) :> IKafkaService
+    let kafkaStreamsService = new KafkaStreamsService(kafkaConfig, logger, kafkaService)
 
-        printfn $"Starting  {argv} console apps..."
-        1
-    else
-        let kafkaConfig = KafkaConfig() :> IKafkaConfig
-        let logger = LoggingWrapper() :> ILoggingWrapper
-        let kafkaService = KafkaService(kafkaConfig, logger) :> IKafkaService
-        let kafkaStreamsService = new KafkaStreamsService(kafkaConfig, logger, kafkaService)
+    let rec interactiveLoop () =
+        showMenu ()
 
-        let rec interactiveLoop () =
-            showMenu ()
+        match Console.ReadLine() with
+        | "1" ->
+            createTopic kafkaService
+            interactiveLoop ()
+        | "2" ->
+            sendMessage kafkaService
+            interactiveLoop ()
+        | "3" ->
+            listTopics kafkaService
+            interactiveLoop ()
+        | "4" ->
+            deleteTopic kafkaService
+            interactiveLoop ()
+        | "5" ->
+            getTopicDetails kafkaService
+            interactiveLoop ()
+        | "6" ->
+            consumeMessages kafkaService
+            interactiveLoop ()
+        | "7" ->
+            startStream kafkaStreamsService
+            interactiveLoop ()
+        | "8" ->
+            stopStream kafkaStreamsService
+            interactiveLoop ()
+        | "9" ->
+            restartStream kafkaStreamsService
+            interactiveLoop ()
+        | "10" ->
+            getPartitionsForTopic kafkaService
+            interactiveLoop ()
+        | "12" ->
+            getTopicMessages kafkaService
+            interactiveLoop ()
+        | "q"
+        | "Q" -> printfn "Exiting Kafka Client..."
+        | _ ->
+            printfn "Invalid choice. Please select a valid option."
+            interactiveLoop ()
 
-            match Console.ReadLine() with
-            | "1" ->
-                createTopic kafkaService
-                interactiveLoop ()
-            | "2" ->
-                sendMessage kafkaService
-                interactiveLoop ()
-            | "3" ->
-                listTopics kafkaService
-                interactiveLoop ()
-            | "4" ->
-                deleteTopic kafkaService
-                interactiveLoop ()
-            | "5" ->
-                getTopicDetails kafkaService
-                interactiveLoop ()
-            | "6" ->
-                consumeMessages kafkaService
-                interactiveLoop ()
-            | "7" ->
-                startStream kafkaStreamsService
-                interactiveLoop ()
-            | "8" ->
-                stopStream kafkaStreamsService
-                interactiveLoop ()
-            | "9" ->
-                restartStream kafkaStreamsService
-                interactiveLoop ()
-            | "10" ->
-                addBroker kafkaService
-                interactiveLoop ()
-            | "11" ->
-                printf "Enter stream topic (e.g., 'user-actions'): "
-                let streamTopic = Console.ReadLine()
-                printf "Enter table topic (e.g., 'user-profiles'): "
-                let tableTopic = Console.ReadLine()
-                printf "Enter output topic (e.g., 'user-interactions-enriched'): "
-                let outputTopic = Console.ReadLine()
-
-                kafkaStreamsService.JoinStreamWithTable<string, string, string, string>(
-                    streamTopic,
-                    tableTopic,
-                    outputTopic,
-                    userActionJoinFunction
-                )
-
-                printfn
-                    "Stream and table joined on topics '%s' and '%s' with output to '%s'."
-                    streamTopic
-                    tableTopic
-                    outputTopic
-
-                interactiveLoop ()
-            | "q"
-            | "Q" -> printfn "Exiting Kafka Client..."
-            | _ ->
-                printfn "Invalid choice. Please select a valid option."
-                interactiveLoop ()
-
-        interactiveLoop ()
-        0
+    interactiveLoop ()
+    0

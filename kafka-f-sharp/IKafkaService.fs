@@ -18,6 +18,8 @@ type IKafkaService =
 
     abstract member ConsumeMessages: topic: string -> groupId: string -> timeoutMs: int -> Async<unit>
 
-    abstract member AddBroker: broker: string -> Async<unit>
-
     abstract member ProduceBatchMessages: topic: string -> messages: (string * string) seq -> unit
+
+    abstract member GetTopicMessages: topic: string -> Async<unit>
+
+    abstract member GetPartitionsForTopic: topic: string -> Async<unit>
